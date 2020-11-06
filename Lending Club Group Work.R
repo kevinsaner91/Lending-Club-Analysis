@@ -61,3 +61,5 @@ loan_cleaned$application_type <- as.factor(loan_cleaned$application_type)
 loan_cleaned$pymnt_plan <- as.factor(loan_cleaned$pymnt_plan)
 loan_cleaned$initial_list_status <- as.factor(loan_cleaned$initial_list_status)
 loan_cleaned$policy_code <- as.factor(loan_cleaned$policy_code)
+
+#
