@@ -13,9 +13,15 @@ library(maps)
 library(fiftystater)
 library(viridis)
 
-# setwd("C:/Users/phkem/Switch Drive/02_Studium/01_Master Olten/3. Semester/Data Science/Group Work")
-# df_sample <- sample_n(df,10000)
+# ===================================================================================================
+#
+# I. Initial data load and first data preparation
+#
+# (setwd before starting!)
+#
+# ===================================================================================================
 
+rm(list = ls())
 df_loan <- read.csv("../regression_train_loan.csv",sep = ",", header = TRUE)
 
 # Checking summary of the data and getting first insights
@@ -25,14 +31,18 @@ glimpse(df_loan)
 # Check for duplicates
 sum(duplicated(df_loan))
 
+#################################################
+##
+## I.I DATA CLEANING
+## Based on insights above and further manual analysis 
+## summary, boxplot, histogram per column if this was possible - see Excel Sheet
+##
+#################################################
 
-########## DATA CLEANING
-########## Based on insights above and further manual analysis 
-########## (summary, boxplot, histogram per column if this was possible) (see Excel Sheet)
-
-# Further check for NA values to be sure that we can delete them 
+## Further check for NA values to be sure that we can delete them 
 colSums(is.na(df_loan))
-# Visualization of the number of NA values
+
+## Visualization of the number of NA values
 options(repr.plot.width=6, repr.plot.height=8)
 missing_data <- df_loan %>% summarise_all(funs(sum(is.na(.))/n()))
 missing_data <- gather(missing_data, key = "variables", value = "percent_missing") 
@@ -43,10 +53,16 @@ ggplot(missing_data,
                                             aes(color = I('white')), 
                                             size = 0.1)+coord_flip() + theme_few()
 
-# get rid of columns having more than 10% of missing data
+####
+##
+## get rid of columns having more than 10% of missing data
+## first step of cleaning 
+##
+####
 loan_cleaned_I <- df_loan[, -which(colMeans(is.na(df_loan)) > 0.1)]
 
-# Check again visually  
+
+## Check again visually  
 missing_data <- loan_cleaned_I %>% summarise_all(funs(sum(is.na(.))/n()))
 missing_data <- gather(missing_data, key = "variables", value = "percent_missing") 
 ggplot(missing_data, 
@@ -55,8 +71,12 @@ ggplot(missing_data,
                                             fill = "red", 
                                             aes(color = I('white')), 
                                             size = 0.1)+coord_flip() + theme_few()
-
-# Removing all columns already identified as not usable in the Excel - some already removed by the previous operation
+#################################################
+##
+## Removing all columns already identified as not usable in the Excel 
+## - some already removed by the previous operation
+##
+#################################################
 df_loan_cleaned <- within(loan_cleaned_I, rm('X',
                                           'url',
                                           'id',
@@ -93,7 +113,7 @@ df_loan_cleaned <- within(loan_cleaned_I, rm('X',
                                           'total_cu_tl',
                                           'inq_last_12m'))
 
-# Check again visually  
+## Check again visually  
 missing_data <- df_loan_cleaned %>% summarise_all(funs(sum(is.na(.))/n()))
 missing_data <- gather(missing_data, key = "variables", value = "percent_missing") 
 ggplot(missing_data, 
@@ -102,27 +122,46 @@ ggplot(missing_data,
                                             fill = "red", 
                                             aes(color = I('white')), 
                                             size = 0.1)+coord_flip() + theme_few()
+######
+##
+## write a file of the cleaned set
+##
+######
 
-write.csv(x = df_loan_cleaned, file = "regression_loan_cleaned.csv")
+write.csv(x = df_loan_cleaned, file = "../regression_loan_cleaned.csv")
+
+######
+## sample the set for further analysis on smaller data set and store this in a file as well
+######
+
 df_sample <- sample_n(df_loan_cleaned,10000)
 write.csv(x = df_sample, file = "regression_train_loan_sample_cleaned.csv")
 
+
+
+
+# ===================================================================================================
+#
+# II. Data Analysis on the prepared data
+#
+# ===================================================================================================
+
 ## CLEANUP ## 
-# Must not be performed - but could improve performance!
+## Must not be performed - but could improve performance!
 rm(list = ls())
 df_loan_sample <- read.csv("regression_train_loan_sample_cleaned.csv",sep = ",", header = TRUE)
+##
 
-
-# converting incorrect data types to be able to work with them
-# factor variables
-df_loan_sample$term <- as.factor(df_loan_sample$term)
+# converting incorrect data types to be able to work with them as factor variables
 # df_loan_sample$grade <- as.factor(df_loan_sample$grade) # not in the data set after our analysis
+df_loan_sample$term <- as.factor(df_loan_sample$term)
 df_loan_sample$emp_length <- as.factor(df_loan_sample$emp_length)
 df_loan_sample$home_ownership <- as.factor(df_loan_sample$home_ownership)
 df_loan_sample$verification_status <- as.factor(df_loan_sample$verification_status)
 df_loan_sample$loan_status <- as.factor(df_loan_sample$loan_status)
 df_loan_sample$application_type <- as.factor(df_loan_sample$application_type)
 df_loan_sample$initial_list_status <- as.factor(df_loan_sample$initial_list_status)
+
 # dates
 df_loan_sample$issue_d <- parse_date(as.character(df_loan_sample$issue_d), format =  "%b-%Y")
 
@@ -137,4 +176,157 @@ ggplot(df_loan_sample.loan.distribution,
   geom_bar(stat="identity",
            aes(color = I('black')), 
            size = 0.1) + coord_flip() + theme(legend.position = "none")+ xlab("Loan status") + ylab("Percentage in the dataset in the loan status")
+
+
+
+
+#################################################
+##
+##
+##  II.I Simple analysis of the identified categorical variables
+##  performed on the sample data set
+##  (can be performed on all data if the input df is called dataset_to_analize and cleaned as shown above)
+##
+##
+#################################################
+dataset_to_analyze <- df_loan_sample
+
+################################################################################################## müsste angeschaut werden, was davon wirklich sinn macht!!
+
+
+# The target variable column Loan_status has 10 categories
+# Our goal is to find out the driving factors for loan getting charged off, so we will only consider the data from Fully paid and charged off category, where we know the exact outcome of the loan category.
+# And insert a new column with binary values for the fully paid column as 1 and charged off as 0.
+dataset_to_analyze <- filter(dataset_to_analyze, dataset_to_analyze$loan_status == "Fully Paid" | dataset_to_analyze$loan_status == "Charged Off")
+dataset_to_analyze <- mutate(dataset_to_analyze, status_flag=as.numeric(ifelse(dataset_to_analyze$loan_status == "Fully Paid", 1, 0)))
+
+options(repr.plot.width=5, repr.plot.height=3)
+#i. Term
+dataset_to_analyze %>% group_by(term) %>% dplyr::summarise(count=n()) %>% mutate(pct=count/sum(count))%>% 
+  ggplot(aes(x = term, y = pct)) + geom_bar(stat = "identity", fill = "purple", aes(color = I('black')), size = 0.1)+xlab("Term") + 
+  ylab("Percent")+ theme_few()
+#Number of loans issued for 36 months are more
+
+#ii. Grade
+dataset_to_analyze %>% group_by(grade) %>% dplyr::summarise(count=n()) %>% mutate(pct=count/sum(count))%>% 
+  ggplot(aes(x = reorder(grade,-pct), y = pct)) + geom_bar(stat = "identity", fill = "purple", aes(color = I('black')), size = 0.1) + 
+  xlab("Grade") + ylab("Percent")+ theme_few()
+#Grade B accounts for 30% of the loans
+
+#iii. Employment Length
+dataset_to_analyze %>% group_by(emp_length) %>% dplyr::summarise(count=n()) %>% mutate(pct=count/sum(count))%>% 
+  ggplot(aes(x = reorder(emp_length, pct), y = pct)) + geom_bar(stat = "identity", fill = "purple", aes(color = I('black')), size = 0.1) + 
+  xlab("Length of employment") + ylab("Percent")+coord_flip()+ theme_few()
+
+#vi. Purpose
+dataset_to_analyze %>% group_by(purpose) %>% dplyr::summarise(count=n()) %>% mutate(pct=count/sum(count))%>% 
+  ggplot(aes(x = reorder(purpose, pct), y = pct)) + geom_bar(stat = "identity", fill = "purple", aes(color = I('black')), size = 0.1) + 
+  xlab("Purpose of Loan") + ylab("Percent")+ coord_flip()+theme_few()
+#debt consolidation accounts for 60% of the loans borrowed
+
+options(repr.plot.width=6, repr.plot.height=6)
+#vii. State
+dataset_to_analyze %>% group_by(addr_state) %>% dplyr::summarise(count=n()) %>% mutate(pct=count/sum(count))%>% 
+  ggplot(aes(x = reorder(addr_state, pct), y = pct)) + geom_bar(stat = "identity", fill = "lightblue2", aes(color = I('black')), size = 0.1) + 
+  xlab("State Wise Loan") + ylab("Percent")+ coord_flip()+theme_few()
+#loans applied in CA are more
+
+# Analysing the distribution of Continous variables
+dataset_to_analyze %>% keep(is.numeric) %>% gather() %>%  ggplot(aes(value)) + 
+  facet_wrap(~ key, scales = "free") +
+  geom_histogram(bins=20, color= "black", fill= "#3399FF")
+
+
+#SEGMENTED UNIVARIATE ANALYSIS:
+  
+  
+  # Default with respect to Term: The percentage of default in case of loans with 60 months term is higher as compared to the loans with 36 months term.
+  options(repr.plot.width=6, repr.plot.height=4)
+#i. Term and Loan Status
+ggplot(dataset_to_analyze, aes(x =term, fill = loan_status)) + geom_bar(stat='count', position='fill', aes(color = I('black')), size = 0.1) + 
+  labs(x = 'Term') + 
+  ylab("Percent of default Vs No default") +theme_few()
+#Loans with 60 months term get defaulted more as compared to 36 months term
+
+#ii. Grade and Loan Status
+ggplot(dataset_to_analyze, aes(x = grade, fill = loan_status)) + geom_bar(stat='count', position='fill', aes(color = I('black')), size = 0.1) + 
+  labs(x = 'Grade') + scale_fill_discrete(name="Loan_Status") +theme_few()
+#Default increases with increase in Grade from A-G, A means lowest risk of loan default and G means higher risk of loan default
+
+#iii. Employee length and Loan Status
+ggplot(filter(dataset_to_analyze, emp_length != 'n/a'), aes(x =emp_length, fill = loan_status)) + 
+  geom_bar(stat='count', position='fill', aes(color = I('black')), size = 0.1) +labs(x = 'emp_length') + 
+  scale_fill_discrete(name="Loan_Status") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.8, hjust=1))
+
+#length of employment doesn't seems to have much impact on loan status
+
+#iv. Home Ownership and Loan Status
+ggplot(dataset_to_analyze, aes(x =home_ownership, fill = loan_status)) + 
+  geom_bar(stat='count', position='fill', aes(color = I('black')), size = 0.1) +labs(x = 'home_ownership') +
+  scale_fill_discrete(name="Loan_Status") +theme_few()
+#The default rate in Own, rent and mortgage home status is almost same
+
+
+#v. Verification Status and Loan Status
+ggplot(dataset_to_analyze, aes(x =verification_status, fill = loan_status)) + 
+  geom_bar(stat='count', position='fill', aes(color = I('black')), size = 0.1) +labs(x = 'Verification_status',  
+                                                                                     y="Percent of default Vs No default") +  theme_few()
+#The default rate in verified category is slightly more than non verified categories
+
+#vi. Purpose of Loan and Loan Status
+dataset_to_analyze %>% group_by(purpose) %>% summarise(default.pct = (1-sum(binary_status)/n())) %>% 
+  ggplot(aes(x = reorder(purpose, default.pct), y = default.pct)) +
+  geom_bar(stat = "identity", fill =  "coral", aes(color = I('black')), size = 0.1)+coord_flip()+xlab("Purpose") + ylab("default percent")+ 
+  theme_few()
+
+options(repr.plot.width=6, repr.plot.height=8)
+#vii. State and Loan Status
+state.status <- dataset_to_analyze %>% group_by(addr_state) %>% 
+  summarise(default.pct = (1-sum(binary_status)/n()))
+ggplot(state.status, aes(x = reorder(addr_state, default.pct), y = default.pct)) +
+  geom_bar(stat = "identity", fill = "lightblue2", aes(color = I('white')), size = 0.1)+coord_flip()+xlab("States") + ylab("default percent")+ 
+  theme_few()
+
+options(repr.plot.width=6, repr.plot.height=4)
+#i. Loan Amount and Loan Status
+ggplot(dataset_to_analyze, aes(x= loan_amnt)) + geom_density(aes(fill = as.factor(loan_status)))+  
+  xlab("Loan_amount")+theme_few()
+#Incidences of loan default can be seen when the loan amount is above 10,000
+
+#ii. Interest Rate and Loan Status
+ggplot(dataset_to_analyze, aes(x= int_rate, fill = loan_status)) +
+  geom_histogram(bins = 10, position = "fill", aes(color = I('black')), size = 0.1)+ 
+  xlab("Interest Rate")+ 
+  ylab("Percent of default Vs No default")+theme_few()
+ggplot(dataset_to_analyze, aes(x = loan_status, y = int_rate, fill = loan_status)) + geom_boxplot()
+#ii. High interest rate is definitely linked to more number of defaults except for few outliers
+
+#iii. Debt to Income(dti) and Loan Status
+ggplot(dataset_to_analyze, aes(x= dti, fill = loan_status)) + geom_density()+  
+  theme_few()
+#default increases when the dti is above 20
+
+#iv. Number of inquiries made in last 6 months and Loan Status
+ggplot(dataset_to_analyze, aes(x= factor(inq_last_6mths), fill = factor(loan_status))) + 
+  geom_bar(position = "fill", aes(color = I('black')), size = 0.1)+   
+  xlab("Inquiry in Last 6 months")+ 
+  ylab("Percent of default Vs No default")+theme_few()
+ggplot(dataset_to_analyze, aes(x = loan_status, y = inq_last_6mths, fill = loan_status)) + geom_boxplot()
+#The Median and IQR is high for inquiries made in last 6 months for the Charged off category 
+#as compared to Fully paid category, except for few outliers.
+
+#iv. Number of inquiries made in last 6 months and Loan Status
+ggplot(dataset_to_analyze, aes(x= factor(inq_last_6mths), fill = factor(loan_status))) + 
+  geom_bar(position = "fill", aes(color = I('black')), size = 0.1)+   
+  xlab("Inquiry in Last 6 months")+ 
+  ylab("Percent of default Vs No default")+theme_few()
+ggplot(dataset_to_analyze, aes(x = loan_status, y = inq_last_6mths, fill = loan_status)) + geom_boxplot()
+#The Median and IQR is high for inquiries made in last 6 months for the Charged off category 
+#as compared to Fully paid category, except for few outliers.
+
+options(repr.plot.width=8, repr.plot.height=6)
+
+corrplot(cor(dataset_to_analyze[,unlist(lapply(dataset_to_analyze, is.numeric))], use = "complete.obs"), 
+         type = "lower", method = "number")
 
