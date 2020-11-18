@@ -26,7 +26,7 @@ library(viridis)
 # ===================================================================================================
 
 rm(list = ls())
-df_loan <- read.csv("../regression_train_loan.csv",sep = ",", header = TRUE)
+df_loan <- read.csv("regression_train_loan.csv",sep = ",", header = TRUE)
 
 # Checking summary of the data and getting first insights
 summary(df_loan)
@@ -292,6 +292,10 @@ dataset_to_analyze %>% group_by(addr_state) %>% dplyr::summarise(count=n()) %>% 
 plot(dataset_to_analyze$int_rate~dataset_to_analyze$addr_state)
 # --> in general - except some outliers - the state does not except the ranges of the interest rate 
 
+dataset_to_analyze$issue_d <- format(dataset_to_analyze$issue_d, format = "%Y")
+int_rate_per_year_and_grade <- aggregate(dataset_to_analyze$int_rate, list(dataset_to_analyze$issue_d, dataset_to_analyze$sub_grade), mean)
+ggplot(int_rate_per_year_and_grade, aes(x = Group.1, y = x)) + geom_histogram(stat = 'bin')
+
 #################################################
 ##
 ##
@@ -302,12 +306,13 @@ plot(dataset_to_analyze$int_rate~dataset_to_analyze$addr_state)
 
 linear_fit <- lm(data = dataset_to_analyze, formula = int_rate~.)
 summary(linear_fit)
-# ==> the sub_grade seems to be a highly significant factor in case of the interest rate 
+# ==> take all seemingly important variables 
 
-
-
-linear_fit.II <- lm(data = dataset_to_analyze, formula = int_rate~sub_grade+home_ownership)
+linear_fit.II <- lm(data = dataset_to_analyze, formula = int_rate~sub_grade+verification_status+term+issue_d)
 summary(linear_fit.II)
+
+linear_fit.III <- lm(data = dataset_to_analyze, formula = int_rate~sub_grade+home_ownership)
+summary(linear_fit.III)
 
 ##################################################################################################
 ##################################################################################################
