@@ -251,8 +251,7 @@ ggplot(data=int_rate_per_year_and_grade, aes(x=Year, y=mean_int_rate, group = Gr
   ggtitle("Development of the mean interest rate per group over the years") + 
   xlab("Year") + 
   ylab("Mean of Interest rate per Grade")+
-  theme(legend.position="right") +
-  labs(fill= "Dose (mg)")
+  theme(legend.position="right") 
 # --> In addition to the grade itself the year of the application also has an impact on the interest rate and should be considered
 
 
