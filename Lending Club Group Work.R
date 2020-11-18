@@ -294,7 +294,13 @@ plot(dataset_to_analyze$int_rate~dataset_to_analyze$addr_state)
 
 
 int_rate_per_year_and_grade <- aggregate(dataset_to_analyze$int_rate, list(format(dataset_to_analyze$issue_d, format = "%Y"), substr(dataset_to_analyze$sub_grade, 1,1)), mean)
-#missing plot
+int_rate_per_year_and_grade$Group.2 <- as.factor(int_rate_per_year_and_grade$Group.2)
+int_rate_per_year_and_grade$Group.1 <- as.factor(int_rate_per_year_and_grade$Group.1)
+
+ggplot(data = int_rate_per_year_and_grade, aes(x = Group.1, y=x,colour=Group.2 ))+geom_line()
+
+
+#missing plot (Anfänger..)
 
 #################################################
 ##
