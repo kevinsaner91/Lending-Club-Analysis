@@ -292,10 +292,9 @@ dataset_to_analyze %>% group_by(addr_state) %>% dplyr::summarise(count=n()) %>% 
 plot(dataset_to_analyze$int_rate~dataset_to_analyze$addr_state)
 # --> in general - except some outliers - the state does not except the ranges of the interest rate 
 
-dataset_to_analyze$issue_d <- format(dataset_to_analyze$issue_d, format = "%Y")
-dataset_to_analyze$grade <- substr(dataset_to_analyze$grade, 1,1)
-int_rate_per_year_and_grade <- aggregate(dataset_to_analyze$int_rate, list(dataset_to_analyze$issue_d, dataset_to_analyze$grade), mean)
-ggplot(int_rate_per_year_and_grade, aes(x = Group.2, y = x))
+
+int_rate_per_year_and_grade <- aggregate(dataset_to_analyze$int_rate, list(format(dataset_to_analyze$issue_d, format = "%Y"), substr(dataset_to_analyze$sub_grade, 1,1)), mean)
+#missing plot
 
 #################################################
 ##
