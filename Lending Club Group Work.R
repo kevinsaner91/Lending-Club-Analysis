@@ -170,7 +170,7 @@ df_loan_sample <- read.csv("regression_train_loan_sample_cleaned.csv",sep = ",",
 #################################################
 
 # converting incorrect data types to be able to work with them as factor variables
-df_loan_sample$grade <- as.factor(df_loan_sample$sub_grade)
+df_loan_sample$sub_grade <- as.factor(df_loan_sample$sub_grade)
 df_loan_sample$term <- as.factor(df_loan_sample$term)
 df_loan_sample$emp_length <- as.factor(df_loan_sample$emp_length)
 df_loan_sample$home_ownership <- as.factor(df_loan_sample$home_ownership)
@@ -229,6 +229,32 @@ options(repr.plot.width=6, repr.plot.height=4)
 ggplot(dataset_to_analyze, aes(x = sub_grade, fill = loan_status)) + geom_bar(stat='count', position='fill', aes(color = I('black')), size = 0.1) + 
   labs(x = 'Sub Grade') + scale_fill_discrete(name="Loan_Status") + theme_few()
 # --> Default rate increases with a worse sub grade rating --> might be a possible factor to consider
+
+# To check the aspect of time on interest in regard of the grade:
+#dataset_to_analyze$grade <- substr(dataset_to_analyze$sub_grade, 1,1)
+int_rate_per_year_and_grade <- aggregate(dataset_to_analyze$int_rate, 
+                                         list(format(dataset_to_analyze$issue_d, format = "%Y"), 
+                                              substr(dataset_to_analyze$sub_grade, 1,1)), 
+                                         mean)
+# minor cleanup to work with spelling names
+int_rate_per_year_and_grade$Year <- int_rate_per_year_and_grade$Group.1
+int_rate_per_year_and_grade$Grade <- int_rate_per_year_and_grade$Group.2
+int_rate_per_year_and_grade$mean_int_rate <- int_rate_per_year_and_grade$x
+int_rate_per_year_and_grade <- within(int_rate_per_year_and_grade, rm("Group.1", "Group.2", "x"))
+
+# GGPLOT examples:
+# http://www.sthda.com/english/wiki/ggplot2-line-types-how-to-change-line-types-of-a-graph-in-r-software
+# http://www.sthda.com/english/wiki/ggplot2-title-main-axis-and-legend-titles
+ggplot(data=int_rate_per_year_and_grade, aes(x=Year, y=mean_int_rate, group = Grade)) +
+  geom_line(aes(linetype = Grade, color = Grade)) + 
+  geom_point(color="red") +
+  ggtitle("Development of the mean interest rate per group over the years") + 
+  xlab("Year") + 
+  ylab("Mean of Interest rate per Grade")+
+  theme(legend.position="right") 
+# --> In addition to the grade itself the year of the application also has an impact on the interest rate and should be considered
+
+
 
 # Insights in Loan status in relation to the interest rate regardless of the loan status
 ggplot(dataset_to_analyze, aes(x = sub_grade, y = int_rate, fill = sub_grade)) + geom_boxplot()
@@ -292,15 +318,6 @@ dataset_to_analyze %>% group_by(addr_state) %>% dplyr::summarise(count=n()) %>% 
 plot(dataset_to_analyze$int_rate~dataset_to_analyze$addr_state)
 # --> in general - except some outliers - the state does not except the ranges of the interest rate 
 
-
-int_rate_per_year_and_grade <- aggregate(dataset_to_analyze$int_rate, list(format(dataset_to_analyze$issue_d, format = "%Y"), substr(dataset_to_analyze$sub_grade, 1,1)), mean)
-int_rate_per_year_and_grade$Group.2 <- as.factor(int_rate_per_year_and_grade$Group.2)
-int_rate_per_year_and_grade$Group.1 <- as.factor(int_rate_per_year_and_grade$Group.1)
-
-ggplot(data = int_rate_per_year_and_grade, aes(x = Group.1, y=x,colour=Group.2 ))+geom_line()
-
-
-#missing plot (Anfänger..)
 
 #################################################
 ##
