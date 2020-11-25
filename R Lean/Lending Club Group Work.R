@@ -16,6 +16,8 @@ library(car) # outlier function
 require(ggiraph) #making plots look better
 require(ggiraphExtra)
 require(plyr)
+library(zoo)
+library(DescTools)
 
 
 # ===================================================================================================
@@ -79,7 +81,7 @@ df_loan_cleaned <- within(df_loan_cleaned, rm('X',
 #write.csv(x = df_loan_cleaned, file = "../regression_loan_cleaned.csv")
 
 
-# create a sample of 100000 random entries and write a csv file
+# create a sample of 150000 random entries and write a csv file
 df_loan_sample <- sample_n(df_loan_cleaned,150000)
 #write.csv(x = df_loan_sample, file = "regression_train_loan_sample_cleaned.csv")
 
@@ -135,9 +137,11 @@ mypredict$outcome <- test$int_rate - mypredict$fit.fit
 # mypredict
 
 ############ Testing  ################
-mean(abs(mypredict$outcome))
-median(mypredict$outcome)
+MAE(mypredict$fit.fit, test$int_rate)
+MSE(mypredict$fit.fit, test$int_rate)
+MAPE(mypredict$fit.fit, test$int_rate)
 
-boxplot(mypredict$outcome)
+
+boxplot(mypredict$outcome, outline = FALSE)
 boxplot(abs(mypredict$outcome), outline = FALSE)
 hist(mypredict$outcome)
