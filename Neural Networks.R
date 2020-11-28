@@ -176,6 +176,8 @@ df_loan_cleaned_sample$delinq_2yrs <- rescale(df_loan_cleaned_sample$delinq_2yrs
 # all categorical are converted to dummies like the mushrooms
 df_train_features <- dummy_cols(df_loan_cleaned_sample, select_columns = c('term','sub_grade','emp_length', 'home_ownership', 'verification_status', 'purpose'), remove_selected_columns = TRUE)
 
+# if this step is not done, the loss function is nan, dont know why
+# obviously this step should not be necessary
 df_train_features <- within(df_train_features, rm('loan_amnt', 'int_rate', 'installment', 'annual_inc', 'dti','delinq_2yrs' ))
 
 
@@ -183,15 +185,19 @@ df_train_features <- within(df_train_features, rm('loan_amnt', 'int_rate', 'inst
 #but I heard Holger say we need this
 dm_train_features <- data.matrix(df_train_features)
 
+
 # now we reshape to 10000 rows with 75 * 1 array
-dm_train_features <- array_reshape(dm_train_features, c(10000, 70 * 1))
+dm_train_features <- array_reshape(dm_train_features, c(10000, ncol(dm_train_features) * 1))
 
 
 # now we create the model
 # be aware units in the first layer and input shape must match to what is defined in the line before
 create_model_and_train <- function(my_optimizer, my_train_features=dm_train_features, my_train_labels=dm_train_labels) {
   model <- keras_model_sequential() %>% 
-    layer_dense(units = 70, activation = "relu", input_shape = c(70 * 1)) %>% 
+    layer_dense(units = ncol(dm_train_features), activation = "relu", input_shape = c(ncol(dm_train_features) * 1)) %>% 
+    layer_dense(units = 70, activation = "relu") %>% 
+    layer_dense(units = 70, activation = "relu") %>% 
+    layer_dense(units = 50, activation = "relu") %>% 
     layer_dense(units = 50, activation = "relu") %>% 
     layer_dense(units = 2, activation = "softmax")
   
