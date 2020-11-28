@@ -11,7 +11,7 @@ library('cowplot')
 library(plotly)
 library(maps)
 library(MASS)
-library('CRAN')
+
 
 
 # ===================================================================================================
@@ -48,7 +48,6 @@ df_loan_cleaned <- within(loan_cleaned_I, rm('X',
                                              'url',
                                              'id',
                                              'member_id',
-                                             'installment',
                                              'grade',
                                              'emp_title',
                                              'pymnt_plan',
@@ -77,7 +76,34 @@ df_loan_cleaned <- within(loan_cleaned_I, rm('X',
                                              'total_rev_hi_lim',
                                              'inq_fi',
                                              'total_cu_tl',
-                                             'inq_last_12m'))
+                                             'inq_last_12m',
+                                             'funded_amnt',
+                                             'funded_amnt_inv',
+                                             'issue_d',
+                                             'zip_code',
+                                             'addr_state',
+                                             'inq_last_6mths',
+                                             'open_acc',
+                                             'revol_bal',
+                                             'revol_util',
+                                             'total_acc',
+                                             'initial_list_status',
+                                             'out_prncp',
+                                             'out_prncp_inv',
+                                             'total_pymnt',
+                                             'total_pymnt_inv',
+                                             'total_rec_prncp',
+                                             'total_rec_int',
+                                             'total_rec_late_fee',
+                                             'recoveries',
+                                             'collection_recovery_fee',
+                                             'collections_12_mths_ex_med',
+                                             'application_type',
+                                             'verification_status_joint',
+                                             'acc_now_delinq',
+                                             'tot_coll_amt',
+                                             'tot_cur_bal'
+                                             ))
 
 ####################################
 ##
@@ -91,18 +117,28 @@ df_loan_cleaned <- df_loan_cleaned %>% filter(loan_status != 'Fully Paid')
 #TODO determine how the default status is defined
 
 # can't remember but for now we do something
-# all late loans are now default
+# Charged OFF = Default
 df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status == "Charged Off", "Default") 
 df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status != "Default", "No Default") 
 
 #we now only have two levels, default and no default
 
+write.csv(x = df_loan_cleaned, file = "regression_loan_cleaned_for_nn.csv")
+
+######################################################################
+##
+## Store and sample
+##
+######################################################################
+
+rm(list = ls())
+df_loan_cleaned <- read.csv("regression_loan_cleaned_for_nn.csv",sep = ",", header = TRUE)
 #let's sample
 set.seed(666)
 df_loan_cleaned_sample <- sample_n(df_loan_cleaned,10000)
 
+write.csv(x = df_loan_cleaned_sample, file = "regression_loan_cleaned_for_nn_sample.csv")
 
-#TODO write to csv, I think general preparation is done
 
 #########################################################
 ##
@@ -114,22 +150,97 @@ df_loan_cleaned_sample <- sample_n(df_loan_cleaned,10000)
 
 library('keras')
 library('fastDummies')
+library('OneR')
+library("scales")
 
-#make them dummies
+rm(list = ls())
+df_loan_cleaned_sample <- read.csv("regression_loan_cleaned_for_nn_sample.csv",sep = ",", header = TRUE)
 
-train_features <- dummy_cols(df_loan_cleaned_sample, select_columns = 'loan_status', remove_selected_columns = TRUE)
-loan_status_default <- train_features$loan_status_Default
+#prepare the loan_status as categorical value where 1 == Default
+# Bit complicated but works for now
+df_train_labels <- dummy_cols(df_loan_cleaned_sample, select_columns = 'loan_status', remove_selected_columns = TRUE)
 
-x <- dummy_cols(df_loan_cleaned_sample, select_columns = 'emp_length')
+dm_train_labels <- to_categorical(df_train_labels$loan_status_Default)
 
+# loan_status, we are done with you BYE!
+df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('loan_status'))
 
-train_labels <- dummy_cols(df_loan_cleaned_sample, select_columns = c('int_rate', 'dti','term','sub_grade','emp_length', 'home_ownership', 'verification_status', 'purpose', 'delinq_2yrs'), remove_selected_columns = TRUE)
+# all numerical values that are left are rescaled on a scale from 0 to 1
+df_loan_cleaned_sample$loan_amnt <- rescale(df_loan_cleaned_sample$loan_amnt, to=c(0,1))
+df_loan_cleaned_sample$int_rate <- rescale(df_loan_cleaned_sample$int_rate, to=c(0,1))
+df_loan_cleaned_sample$installment <- rescale(df_loan_cleaned_sample$installment, to=c(0,1))
+df_loan_cleaned_sample$annual_inc <- rescale(df_loan_cleaned_sample$annual_inc, to=c(0,1))
+df_loan_cleaned_sample$dti <- rescale(df_loan_cleaned_sample$dti, to=c(0,1))
+df_loan_cleaned_sample$delinq_2yrs <- rescale(df_loan_cleaned_sample$delinq_2yrs, to=c(0,1))
+
+# all categorical are converted to dummies like the mushrooms
+df_train_features <- dummy_cols(df_loan_cleaned_sample, select_columns = c('term','sub_grade','emp_length', 'home_ownership', 'verification_status', 'purpose'), remove_selected_columns = TRUE)
+
+df_train_features <- within(df_train_features, rm('loan_amnt', 'int_rate', 'installment', 'annual_inc', 'dti','delinq_2yrs' ))
+
 
 #convert to matrix, this is pure magic
-dm_loan_cleaned <- data.matrix(df_loan_cleaned_sample)
-#everything is a number now, we'll see if this is sufficient
+#but I heard Holger say we need this
+dm_train_features <- data.matrix(df_train_features)
+
+# now we reshape to 10000 rows with 75 * 1 array
+dm_train_features <- array_reshape(dm_train_features, c(10000, 70 * 1))
 
 
+# now we create the model
+# be aware units in the first layer and input shape must match to what is defined in the line before
+create_model_and_train <- function(my_optimizer, my_train_features=dm_train_features, my_train_labels=dm_train_labels) {
+  model <- keras_model_sequential() %>% 
+    layer_dense(units = 70, activation = "relu", input_shape = c(70 * 1)) %>% 
+    layer_dense(units = 50, activation = "relu") %>% 
+    layer_dense(units = 2, activation = "softmax")
+  
+  model %>% compile(
+    optimizer = my_optimizer,
+    loss = "categorical_crossentropy",
+    metrics = c("accuracy"))
+  
+  history <- model %>% fit(my_train_features, my_train_labels, epochs = 10)
+  
+  return(history)
+}
+
+
+
+#define some optimisers
+optimizer_adam <- optimizer_adam(
+  lr = 0.001,
+  beta_1 = 0.9,
+  beta_2 = 0.999,
+  epsilon = NULL,
+  decay = 0,
+  amsgrad = FALSE,
+  clipnorm = NULL,
+  clipvalue = NULL
+)
+
+optimizer_sgd <- optimizer_sgd(
+  lr = 0.01,
+  momentum = 0,
+  decay = 0,
+  nesterov = FALSE,
+  clipnorm = NULL,
+  clipvalue = NULL
+)
+
+optimizer_rmsprop <- optimizer_rmsprop(
+  lr = 0.001,
+  rho = 0.9,
+  epsilon = NULL,
+  decay = 0,
+  clipnorm = NULL,
+  clipvalue = NULL
+)
+
+# dont know what happens now
+history <- create_model_and_train(optimizer_rmsprop)
+history <- create_model_and_train(optimizer_sgd)
+history <- create_model_and_train(optimizer_adam)
 
 
 
