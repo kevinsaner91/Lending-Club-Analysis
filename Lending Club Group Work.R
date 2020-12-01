@@ -26,7 +26,7 @@ library(viridis)
 # ===================================================================================================
 
 rm(list = ls())
-df_loan <- read.csv("regression_train_loan.csv",sep = ",", header = TRUE)
+df_loan <- read.csv("../regression_train_loan.csv",sep = ",", header = TRUE)
 
 # Checking summary of the data and getting first insights
 summary(df_loan)
@@ -140,7 +140,7 @@ write.csv(x = df_loan_cleaned, file = "../regression_loan_cleaned.csv")
 ## sample the set for further analysis on smaller data set and store this in a file as well
 ## 
 ######
-set.seed(666)
+set.seed(1)
 df_sample <- sample_n(df_loan_cleaned,10000)
 write.csv(x = df_sample, file = "regression_train_loan_sample_cleaned.csv")
 
@@ -168,19 +168,21 @@ df_loan_sample <- read.csv("regression_train_loan_sample_cleaned.csv",sep = ",",
 ## II.I Data type correction
 ##
 #################################################
+dataset_to_analyze <- df_loan_sample
+#dataset_to_analyze <- df_loan_cleaned
 
 # converting incorrect data types to be able to work with them as factor variables
-df_loan_sample$sub_grade <- as.factor(df_loan_sample$sub_grade)
-df_loan_sample$term <- as.factor(df_loan_sample$term)
-df_loan_sample$emp_length <- as.factor(df_loan_sample$emp_length)
-df_loan_sample$home_ownership <- as.factor(df_loan_sample$home_ownership)
-df_loan_sample$verification_status <- as.factor(df_loan_sample$verification_status)
-df_loan_sample$loan_status <- as.factor(df_loan_sample$loan_status)
-df_loan_sample$application_type <- as.factor(df_loan_sample$application_type)
-df_loan_sample$initial_list_status <- as.factor(df_loan_sample$initial_list_status)
+dataset_to_analyze$sub_grade <- as.factor(dataset_to_analyze$sub_grade)
+dataset_to_analyze$term <- as.factor(dataset_to_analyze$term)
+dataset_to_analyze$emp_length <- as.factor(dataset_to_analyze$emp_length)
+dataset_to_analyze$home_ownership <- as.factor(dataset_to_analyze$home_ownership)
+dataset_to_analyze$verification_status <- as.factor(dataset_to_analyze$verification_status)
+dataset_to_analyze$loan_status <- as.factor(dataset_to_analyze$loan_status)
+dataset_to_analyze$application_type <- as.factor(dataset_to_analyze$application_type)
+dataset_to_analyze$initial_list_status <- as.factor(dataset_to_analyze$initial_list_status)
 
 # converting dates from string values
-df_loan_sample$issue_d <- parse_date(as.character(df_loan_sample$issue_d), format =  "%b-%Y")
+dataset_to_analyze$issue_d <- parse_date(as.character(dataset_to_analyze$issue_d), format =  "%b-%Y")
 
 
 #################################################
@@ -193,7 +195,7 @@ df_loan_sample$issue_d <- parse_date(as.character(df_loan_sample$issue_d), forma
 ##
 #################################################
 
-dataset_to_analyze <- df_loan_sample
+
 
 # General analysis of all continuos variables left in the data set with a correlation analysis
 dataset_to_analyze %>% keep(is.numeric) %>% gather() %>%  ggplot(aes(value)) + 
@@ -223,6 +225,11 @@ ggplot(dataset_to_analyze, aes(x= int_rate, fill = loan_status)) +
   ylab("Percent of default Vs No default")+theme_few()
 ggplot(dataset_to_analyze, aes(x = loan_status, y = int_rate, fill = loan_status)) + geom_boxplot()
 # --> High interest rate is more likely resulting in defaults
+
+# Insights about the relationship of interest rate and the status for verification ans the general loan status
+plot(dataset_to_analyze$int_rate~dataset_to_analyze$verification_status)
+plot(dataset_to_analyze$int_rate~dataset_to_analyze$loan_status)
+# --> both seem to be significant in the relation to the interest rate and should be considered in the regression model
 
 # Further insights in loan status in relation to the sub_grade
 options(repr.plot.width=6, repr.plot.height=4)
@@ -255,7 +262,6 @@ ggplot(data=int_rate_per_year_and_grade, aes(x=Year, y=mean_int_rate, group = Gr
 # --> In addition to the grade itself the year of the application also has an impact on the interest rate and should be considered
 
 
-
 # Insights in Loan status in relation to the interest rate regardless of the loan status
 ggplot(dataset_to_analyze, aes(x = sub_grade, y = int_rate, fill = sub_grade)) + geom_boxplot()
 # --> Sub grade is highly affecting the interest ratings --> should be considered as a factor
@@ -272,7 +278,6 @@ dataset_to_analyze %>% group_by(purpose) %>% dplyr::summarise(count=n()) %>% mut
 plot(dataset_to_analyze$int_rate~dataset_to_analyze$purpose)
 # --> debt consolidation accounts for 60% of the loans 
 # --> the ranges of the interest rates seem only slightly affected by the purpose except for educational loans
-
 
 # Impact analysis of the loan status based on the home ownership
 ggplot(dataset_to_analyze, aes(x =home_ownership, fill = loan_status)) + 
