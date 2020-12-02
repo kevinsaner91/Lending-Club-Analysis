@@ -112,14 +112,14 @@ df_loan_cleaned <- within(loan_cleaned_I, rm('X',
 ###################################
 
 #omit all fully paid loans
-df_loan_cleaned <- df_loan_cleaned %>% filter(loan_status != 'Fully Paid')
+df_loan_cleaned <- df_loan_cleaned %>% filter(loan_status == "Fully Paid" |loan_status == "Default")
 
 #TODO determine how the default status is defined
 
 # can't remember but for now we do something
 # Charged OFF = Default
-df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status == "Charged Off", "Default") 
-df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status != "Default", "No Default") 
+# df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status == "Charged Off", "Default") 
+# df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status != "Default", "No Default") 
 
 #we now only have two levels, default and no default
 
@@ -156,6 +156,9 @@ library("scales")
 rm(list = ls())
 df_loan_cleaned_sample <- read.csv("regression_loan_cleaned_for_nn_sample.csv",sep = ",", header = TRUE)
 
+df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('X.1',
+                                                            'X'))
+
 #prepare the loan_status as categorical value where 1 == Default
 # Bit complicated but works for now
 df_train_labels <- dummy_cols(df_loan_cleaned_sample, select_columns = 'loan_status', remove_selected_columns = TRUE)
@@ -166,19 +169,18 @@ dm_train_labels <- to_categorical(df_train_labels$loan_status_Default)
 df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('loan_status'))
 
 # all numerical values that are left are rescaled on a scale from 0 to 1
-df_loan_cleaned_sample$loan_amnt <- rescale(df_loan_cleaned_sample$loan_amnt, to=c(0,1))
-df_loan_cleaned_sample$int_rate <- rescale(df_loan_cleaned_sample$int_rate, to=c(0,1))
-df_loan_cleaned_sample$installment <- rescale(df_loan_cleaned_sample$installment, to=c(0,1))
-df_loan_cleaned_sample$annual_inc <- rescale(df_loan_cleaned_sample$annual_inc, to=c(0,1))
-df_loan_cleaned_sample$dti <- rescale(df_loan_cleaned_sample$dti, to=c(0,1))
-df_loan_cleaned_sample$delinq_2yrs <- rescale(df_loan_cleaned_sample$delinq_2yrs, to=c(0,1))
+df_loan_cleaned_sample$loan_amnt <- bin(df_loan_cleaned_sample$loan_amnt, nbins = 10)
+df_loan_cleaned_sample$annual_inc <- bin(df_loan_cleaned_sample$annual_inc, nbins = 10)
+df_loan_cleaned_sample$installment <- bin(df_loan_cleaned_sample$installment, nbins = 10)
+df_loan_cleaned_sample$dti <- bin(df_loan_cleaned_sample$dti, nbins = 10)
+df_loan_cleaned_sample$delinq_2yrs <- bin(df_loan_cleaned_sample$delinq_2yrs, nbins = 10)
 
 # all categorical are converted to dummies like the mushrooms
-df_train_features <- dummy_cols(df_loan_cleaned_sample, select_columns = c('term','sub_grade','emp_length', 'home_ownership', 'verification_status', 'purpose'), remove_selected_columns = TRUE)
+df_train_features <- dummy_cols(df_loan_cleaned_sample, select_columns = c('installment',  'dti','delinq_2yrs' ,'annual_inc','loan_amnt','term','sub_grade','emp_length', 'home_ownership', 'verification_status', 'purpose'), remove_selected_columns = TRUE)
 
 # if this step is not done, the loss function is nan, dont know why
 # obviously this step should not be necessary
-df_train_features <- within(df_train_features, rm('loan_amnt', 'int_rate', 'installment', 'annual_inc', 'dti','delinq_2yrs' ))
+df_train_features <- within(df_train_features, rm('int_rate' ))
 
 
 #convert to matrix, this is pure magic
@@ -199,11 +201,11 @@ create_model_and_train <- function(my_optimizer, my_train_features=dm_train_feat
     layer_dense(units = 70, activation = "relu") %>% 
     layer_dense(units = 50, activation = "relu") %>% 
     layer_dense(units = 50, activation = "relu") %>% 
-    layer_dense(units = 2, activation = "softmax")
+    layer_dense(units = 2, activation = "sigmoid")
   
   model %>% compile(
     optimizer = my_optimizer,
-    loss = "categorical_crossentropy",
+    loss = "binary_crossentropy",
     metrics = c("accuracy"))
   
   history <- model %>% fit(my_train_features, my_train_labels, epochs = 10)
