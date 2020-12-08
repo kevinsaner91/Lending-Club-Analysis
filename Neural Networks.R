@@ -112,16 +112,15 @@ df_loan_cleaned <- within(loan_cleaned_I, rm('X',
 ###################################
 
 #omit all fully paid loans
-df_loan_cleaned <- df_loan_cleaned %>% filter(loan_status == "Fully Paid" |loan_status == "Default")
+df_loan_cleaned <- df_loan_cleaned %>% filter(loan_status != "Current")
 
 #TODO determine how the default status is defined
 
 # can't remember but for now we do something
 # Charged OFF = Default
-# df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status == "Charged Off", "Default") 
-# df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status != "Default", "No Default") 
+df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status != "Fully Paid", "Default") 
 
-#we now only have two levels, default and no default
+#we now only have two levels, default and fully paid
 
 write.csv(x = df_loan_cleaned, file = "regression_loan_cleaned_for_nn.csv")
 
@@ -134,7 +133,7 @@ write.csv(x = df_loan_cleaned, file = "regression_loan_cleaned_for_nn.csv")
 rm(list = ls())
 df_loan_cleaned <- read.csv("regression_loan_cleaned_for_nn.csv",sep = ",", header = TRUE)
 #let's sample
-set.seed(666)
+set.seed(1)
 df_loan_cleaned_sample <- sample_n(df_loan_cleaned,10000)
 
 write.csv(x = df_loan_cleaned_sample, file = "regression_loan_cleaned_for_nn_sample.csv")
@@ -169,11 +168,11 @@ dm_train_labels <- to_categorical(df_train_labels$loan_status_Default)
 df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('loan_status'))
 
 # all numerical values that are left are rescaled on a scale from 0 to 1
-df_loan_cleaned_sample$loan_amnt <- bin(df_loan_cleaned_sample$loan_amnt, nbins = 10)
-df_loan_cleaned_sample$annual_inc <- bin(df_loan_cleaned_sample$annual_inc, nbins = 10)
-df_loan_cleaned_sample$installment <- bin(df_loan_cleaned_sample$installment, nbins = 10)
-df_loan_cleaned_sample$dti <- bin(df_loan_cleaned_sample$dti, nbins = 10)
-df_loan_cleaned_sample$delinq_2yrs <- bin(df_loan_cleaned_sample$delinq_2yrs, nbins = 10)
+df_loan_cleaned_sample$loan_amnt <- bin(df_loan_cleaned_sample$loan_amnt, nbins = 25)
+df_loan_cleaned_sample$annual_inc <- bin(df_loan_cleaned_sample$annual_inc, nbins = 25)
+df_loan_cleaned_sample$installment <- bin(df_loan_cleaned_sample$installment, nbins = 25)
+df_loan_cleaned_sample$dti <- bin(df_loan_cleaned_sample$dti, nbins = 25)
+df_loan_cleaned_sample$delinq_2yrs <- bin(df_loan_cleaned_sample$delinq_2yrs, nbins = 25)
 
 # all categorical are converted to dummies like the mushrooms
 df_train_features <- dummy_cols(df_loan_cleaned_sample, select_columns = c('installment',  'dti','delinq_2yrs' ,'annual_inc','loan_amnt','term','sub_grade','emp_length', 'home_ownership', 'verification_status', 'purpose'), remove_selected_columns = TRUE)
@@ -208,7 +207,7 @@ create_model_and_train <- function(my_optimizer, my_train_features=dm_train_feat
     loss = "binary_crossentropy",
     metrics = c("accuracy"))
   
-  history <- model %>% fit(my_train_features, my_train_labels, epochs = 10)
+  history <- model %>% fit(my_train_features, my_train_labels, epochs = 40)
   
   return(history)
 }
@@ -249,6 +248,7 @@ optimizer_rmsprop <- optimizer_rmsprop(
 history <- create_model_and_train(optimizer_rmsprop)
 history <- create_model_and_train(optimizer_sgd)
 history <- create_model_and_train(optimizer_adam)
+
 
 
 
