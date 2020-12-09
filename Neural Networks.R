@@ -134,7 +134,7 @@ rm(list = ls())
 df_loan_cleaned <- read.csv("regression_loan_cleaned_for_nn.csv",sep = ",", header = TRUE)
 #let's sample
 set.seed(1)
-df_loan_cleaned_sample <- sample_n(df_loan_cleaned,10000)
+df_loan_cleaned_sample <- sample_n(df_loan_cleaned,100050)
 
 write.csv(x = df_loan_cleaned_sample, file = "regression_loan_cleaned_for_nn_sample.csv")
 
@@ -158,11 +158,19 @@ df_loan_cleaned_sample <- read.csv("regression_loan_cleaned_for_nn_sample.csv",s
 df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('X.1',
                                                             'X'))
 
+df_loan_cleaned_sample <- df_loan_cleaned_sample[complete.cases(df_loan_cleaned_sample), ]
+
 #prepare the loan_status as categorical value where 1 == Default
 # Bit complicated but works for now
 df_train_labels <- dummy_cols(df_loan_cleaned_sample, select_columns = 'loan_status', remove_selected_columns = TRUE)
 
-dm_train_labels <- to_categorical(df_train_labels$loan_status_Default)
+write.csv(x = df_train_labels$loan_status_Default, file = "loan_status_default.csv")
+
+#train_labels <- df_train_labels$loan_status_Default[1:90000]
+#val_labels <- df_train_labels$loan_status_Default[90000:99986]
+
+#dm_train_labels <- to_categorical(train_labels)
+#dm_val_labels <- to_categorical(val_labels)
 
 # loan_status, we are done with you BYE!
 df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('loan_status'))
@@ -181,23 +189,33 @@ df_train_features <- dummy_cols(df_loan_cleaned_sample, select_columns = c('inst
 # obviously this step should not be necessary
 df_train_features <- within(df_train_features, rm('int_rate' ))
 
+write.csv(x = df_train_features, file = "train_features.csv")
+
+
+#train_features <- df_train_features[1:90000,]
+#val_features <- df_train_features[90000:99986,]
+
 
 #convert to matrix, this is pure magic
 #but I heard Holger say we need this
-dm_train_features <- data.matrix(df_train_features)
+#dm_train_features <- data.matrix(train_features)
+#dm_val_features <- data.matrix(val_features)
 
 
-# now we reshape to 10000 rows with 75 * 1 array
-dm_train_features <- array_reshape(dm_train_features, c(10000, ncol(dm_train_features) * 1))
+##################################################
+##
+## Create the model and optimizers
+##
+##################################################
+
+rm(list = ls())
 
 
 # now we create the model
 # be aware units in the first layer and input shape must match to what is defined in the line before
-create_model_and_train <- function(my_optimizer, my_train_features=dm_train_features, my_train_labels=dm_train_labels) {
+create_model_and_train <- function(my_optimizer, my_train_features=dm_train_features, my_train_labels=dm_train_labels, my_val_features=dm_val_features, my_val_labels=dm_val_labels) {
   model <- keras_model_sequential() %>% 
     layer_dense(units = ncol(dm_train_features), activation = "relu", input_shape = c(ncol(dm_train_features) * 1)) %>% 
-    layer_dense(units = 70, activation = "relu") %>% 
-    layer_dense(units = 70, activation = "relu") %>% 
     layer_dense(units = 50, activation = "relu") %>% 
     layer_dense(units = 50, activation = "relu") %>% 
     layer_dense(units = 2, activation = "sigmoid")
@@ -207,9 +225,13 @@ create_model_and_train <- function(my_optimizer, my_train_features=dm_train_feat
     loss = "binary_crossentropy",
     metrics = c("accuracy"))
   
-  history <- model %>% fit(my_train_features, my_train_labels, epochs = 40)
+  all_scores <- c()
+  history <- model %>% fit(my_train_features, my_train_labels, epochs = 5)
+  all_scores <- c(all_scores, history$metrics)
+  results <- model %>% evaluate(my_val_features, my_val_labels, verbose = 0)
+  all_scores <- c(all_scores, c(results))
   
-  return(history)
+  return(all_scores)
 }
 
 
@@ -243,6 +265,43 @@ optimizer_rmsprop <- optimizer_rmsprop(
   clipnorm = NULL,
   clipvalue = NULL
 )
+
+df_train_labels <- read.csv("loan_status_default.csv",sep = ",", header = TRUE)
+df_train_labels <- within(df_train_labels, rm('X'))
+df_train_features <- read.csv("train_features.csv",sep = ",", header = TRUE)
+df_train_features <- within(df_train_features, rm('X'))
+all_scores <- c()
+
+
+for (i in c(0, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000)){
+  ub <- i + 10000
+ 
+  
+  cat("    build model for fold #", i, "\n")
+  train_labels <- df_train_labels$x[-(i:ub)]
+  val_labels <- df_train_labels$x[i:ub]
+  
+  dm_train_labels <- to_categorical(train_labels)
+  dm_val_labels <- to_categorical(val_labels)
+  
+  
+  train_features <- df_train_features[-(i:ub),]
+  val_features <- df_train_features[i:ub,]
+  
+  
+  #convert to matrix, this is pure magic
+  #but I heard Holger say we need this
+  dm_train_features <- data.matrix(train_features)
+  dm_val_features <- data.matrix(val_features)
+  
+  history <- create_model_and_train(optimizer_adam)
+  all_scores <- c(all_scores, history)
+}
+
+
+
+
+
 
 # dont know what happens now
 history <- create_model_and_train(optimizer_rmsprop)
