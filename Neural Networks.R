@@ -175,12 +175,14 @@ write.csv(x = df_train_labels$loan_status_Default, file = "loan_status_default.c
 # loan_status, we are done with you BYE!
 df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('loan_status'))
 
+bins <- 50
+
 # all numerical values that are left are rescaled on a scale from 0 to 1
-df_loan_cleaned_sample$loan_amnt <- bin(df_loan_cleaned_sample$loan_amnt, nbins = 25)
-df_loan_cleaned_sample$annual_inc <- bin(df_loan_cleaned_sample$annual_inc, nbins = 25)
-df_loan_cleaned_sample$installment <- bin(df_loan_cleaned_sample$installment, nbins = 25)
-df_loan_cleaned_sample$dti <- bin(df_loan_cleaned_sample$dti, nbins = 25)
-df_loan_cleaned_sample$delinq_2yrs <- bin(df_loan_cleaned_sample$delinq_2yrs, nbins = 25)
+df_loan_cleaned_sample$loan_amnt <- bin(df_loan_cleaned_sample$loan_amnt, nbins = bins)
+df_loan_cleaned_sample$annual_inc <- bin(df_loan_cleaned_sample$annual_inc, nbins = bins)
+df_loan_cleaned_sample$installment <- bin(df_loan_cleaned_sample$installment, nbins = bins)
+df_loan_cleaned_sample$dti <- bin(df_loan_cleaned_sample$dti, nbins = bins)
+df_loan_cleaned_sample$delinq_2yrs <- bin(df_loan_cleaned_sample$delinq_2yrs, nbins = bins)
 
 # all categorical are converted to dummies like the mushrooms
 df_train_features <- dummy_cols(df_loan_cleaned_sample, select_columns = c('installment',  'dti','delinq_2yrs' ,'annual_inc','loan_amnt','term','sub_grade','emp_length', 'home_ownership', 'verification_status', 'purpose'), remove_selected_columns = TRUE)
@@ -213,9 +215,10 @@ rm(list = ls())
 
 # now we create the model
 # be aware units in the first layer and input shape must match to what is defined in the line before
-create_model_and_train <- function(my_optimizer, my_train_features=dm_train_features, my_train_labels=dm_train_labels, my_val_features=dm_val_features, my_val_labels=dm_val_labels) {
+create_model_and_train <- function(my_optimizer, my_train_features=dm_train_features, my_train_labels=dm_train_labels, my_val_features=dm_val_features, my_val_labels=dm_val_labels, epochs=2) {
   model <- keras_model_sequential() %>% 
     layer_dense(units = ncol(dm_train_features), activation = "relu", input_shape = c(ncol(dm_train_features) * 1)) %>% 
+    layer_dense(units = 70, activation = "relu") %>% 
     layer_dense(units = 50, activation = "relu") %>% 
     layer_dense(units = 50, activation = "relu") %>% 
     layer_dense(units = 2, activation = "sigmoid")
@@ -226,10 +229,10 @@ create_model_and_train <- function(my_optimizer, my_train_features=dm_train_feat
     metrics = c("accuracy"))
   
   all_scores <- c()
-  history <- model %>% fit(my_train_features, my_train_labels, epochs = 5)
-  all_scores <- c(all_scores, history$metrics)
+  history <- model %>% fit(my_train_features, my_train_labels, epochs = epochs)
+  all_scores$train <- c(all_scores$train, history$metrics)
   results <- model %>% evaluate(my_val_features, my_val_labels, verbose = 0)
-  all_scores <- c(all_scores, c(results))
+  all_scores$val <- c(all_scores$val, c(results))
   
   return(all_scores)
 }
@@ -271,6 +274,7 @@ df_train_labels <- within(df_train_labels, rm('X'))
 df_train_features <- read.csv("train_features.csv",sep = ",", header = TRUE)
 df_train_features <- within(df_train_features, rm('X'))
 all_scores <- c()
+epochs <- 20
 
 
 for (i in c(0, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000)){
@@ -294,13 +298,40 @@ for (i in c(0, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000)){
   dm_train_features <- data.matrix(train_features)
   dm_val_features <- data.matrix(val_features)
   
-  history <- create_model_and_train(optimizer_adam)
+  history <- create_model_and_train(optimizer_adam, epochs = epochs)
   all_scores <- c(all_scores, history)
 }
 
+train_loss <- c()
+for (i in c(1,3,5,7,9,11,13,15,17,19)){
+  train_loss <- c(train_loss, c(all_scores[i]$train$loss[epochs]))
+}
 
+train_loss_av <- mean(train_loss)
 
+train_acc <- c()
+for (i in c(1,3,5,7,9,11,13,15,17,19)){
+  train_acc <- c(train_acc, c(all_scores[i]$train$accuracy[epochs]))
+}
 
+train_acc_av <- mean(train_acc)
+
+val_loss <- c()
+for (i in c(2,4,6,8,10,12,14,16,18,20)){
+  val_loss <- c(val_loss, c(all_scores[i]$val[1]))
+}
+
+val_loss_av <- mean(val_loss)
+
+val_acc <- c()
+for (i in c(2,4,6,8,10,12,14,16,18,20)){
+  val_acc <- c(val_acc, c(all_scores[i]$val[2]))
+}
+
+val_acc_av <- mean(val_acc)
+
+df_eval <- c(train_loss_av, train_acc_av, val_loss_av, val_acc_av)
+View(df_eval)
 
 
 # dont know what happens now
