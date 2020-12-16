@@ -274,7 +274,7 @@ df_train_labels <- within(df_train_labels, rm('X'))
 df_train_features <- read.csv("train_features.csv",sep = ",", header = TRUE)
 df_train_features <- within(df_train_features, rm('X'))
 all_scores <- c()
-epochs <- 20
+epochs <- 2
 
 
 for (i in c(0, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000)){
@@ -302,42 +302,65 @@ for (i in c(0, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000)){
   all_scores <- c(all_scores, history)
 }
 
+# calculate the mean training loss
 train_loss <- c()
 for (i in c(1,3,5,7,9,11,13,15,17,19)){
   train_loss <- c(train_loss, c(all_scores[i]$train$loss[epochs]))
 }
-
 train_loss_av <- mean(train_loss)
 
+# calculate the mean training accuracy
 train_acc <- c()
 for (i in c(1,3,5,7,9,11,13,15,17,19)){
   train_acc <- c(train_acc, c(all_scores[i]$train$accuracy[epochs]))
 }
-
 train_acc_av <- mean(train_acc)
 
+# calculate the mean validation loss
 val_loss <- c()
 for (i in c(2,4,6,8,10,12,14,16,18,20)){
   val_loss <- c(val_loss, c(all_scores[i]$val[1]))
 }
-
 val_loss_av <- mean(val_loss)
 
+# calculate the mean validation accuracy
 val_acc <- c()
 for (i in c(2,4,6,8,10,12,14,16,18,20)){
   val_acc <- c(val_acc, c(all_scores[i]$val[2]))
 }
-
 val_acc_av <- mean(val_acc)
 
-df_eval <- c(train_loss_av, train_acc_av, val_loss_av, val_acc_av)
+#load the score sheet 
+df_eval <- read.csv("score_sheet.csv",sep = ",", header = TRUE)
+
+df_eval <- data.frame(
+df_eval$network_type <- 'Feed Forward',
+df_eval$bins <- 50,
+df_eval$epochs <- 2,
+df_eval$hidden_layers <- 3,
+df_eval$neurons_layer1 <- 70,
+df_eval$neurons_layer2 <- 50,
+df_eval$neurons_layer3 <- 50,
+df_eval$neurons_layer4 <- NA,
+df_eval$neurons_layer5 <- NA,
+df_eval$neurons_layer6 <- NA,
+df_eval$neurons_layer7 <- NA,
+df_eval$optimizer <- 'adam',
+df_eval$train_loss_av <- train_loss_av,
+df_eval$train_acc_av <- train_acc_av,
+df_eval$val_loss_av  <- val_loss_av,
+df_eval$val_acc_av <- val_acc_av
+)
+
+# add the new score to the dataframe
+df_eval <- rbind(df_eval, df_eval)
+
+# lets have a look at it
 View(df_eval)
 
+# write it to the score sheet
+write.csv(x = df_eval, file = "score_sheet.csv")
 
-# dont know what happens now
-history <- create_model_and_train(optimizer_rmsprop)
-history <- create_model_and_train(optimizer_sgd)
-history <- create_model_and_train(optimizer_adam)
 
 
 
