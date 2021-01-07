@@ -110,10 +110,7 @@ df_loan_cleaned <- within(loan_cleaned_I, rm('X',
 #omit all fully paid loans
 df_loan_cleaned <- df_loan_cleaned %>% filter(loan_status != "Current")
 
-#TODO determine how the default status is defined
-
-# can't remember but for now we do something
-# Charged OFF = Default
+# !Fully Paid = Default
 df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status != "Fully Paid", "Default") 
 
 #we now only have two levels, default and fully paid
@@ -157,7 +154,6 @@ df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('X.1',
 df_loan_cleaned_sample <- df_loan_cleaned_sample[complete.cases(df_loan_cleaned_sample), ]
 
 #prepare the loan_status as categorical value where 1 == Default
-# Bit complicated but works for now
 df_train_labels <- dummy_cols(df_loan_cleaned_sample, select_columns = 'loan_status', remove_selected_columns = TRUE)
 
 write.csv(x = df_train_labels$loan_status_Default, file = "loan_status_default.csv")
@@ -173,21 +169,20 @@ df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('loan_status'))
 
 bins <- 100
 
-# all numerical values that are left are rescaled on a scale from 0 to 1
+# bins are created to make the continuous variables discrete in other words, we want an finite amount of levels 
+# to create the dummies
 df_loan_cleaned_sample$loan_amnt <- bin(df_loan_cleaned_sample$loan_amnt, nbins = bins)
 df_loan_cleaned_sample$annual_inc <- bin(df_loan_cleaned_sample$annual_inc, nbins = bins)
-df_loan_cleaned_sample$installment <- bin(df_loan_cleaned_sample$installment, nbins = 150)
+df_loan_cleaned_sample$installment <- bin(df_loan_cleaned_sample$installment, nbins = bins)
 df_loan_cleaned_sample$dti <- bin(df_loan_cleaned_sample$dti, nbins = bins)
 df_loan_cleaned_sample$delinq_2yrs <- bin(df_loan_cleaned_sample$delinq_2yrs, nbins = 14)
 df_loan_cleaned_sample$out_prncp <- bin(df_loan_cleaned_sample$out_prncp, nbins = bins)
 df_loan_cleaned_sample$total_rec_int <- bin(df_loan_cleaned_sample$total_rec_int, nbins = bins)
 df_loan_cleaned_sample$total_rec_prncp <- bin(df_loan_cleaned_sample$total_rec_prncp, nbins = bins)
 
-
-
 df_loan_cleaned_sample$issue_d <- substr(df_loan_cleaned_sample$issue_d,5, 9)
 
-# all categorical are converted to dummies like the mushrooms
+# all variables are not transformed to dummy variables
 df_train_features <- dummy_cols(df_loan_cleaned_sample, select_columns = c('installment','total_rec_int','total_rec_prncp','out_prncp', 'issue_d','dti','delinq_2yrs' ,'annual_inc','loan_amnt','term','sub_grade','emp_length', 'home_ownership', 'verification_status', 'purpose'), remove_selected_columns = TRUE)
 
 # if this step is not done, the loss function is nan, dont know why
@@ -196,36 +191,22 @@ df_train_features <- within(df_train_features, rm('int_rate' ))
 
 write.csv(x = df_train_features, file = "train_features.csv")
 
-
-#train_features <- df_train_features[1:90000,]
-#val_features <- df_train_features[90000:99986,]
-
-
-#convert to matrix, this is pure magic
-#but I heard Holger say we need this
-#dm_train_features <- data.matrix(train_features)
-#dm_val_features <- data.matrix(val_features)
-
-
 ##################################################
 ##
 ## Create the model and optimizers
 ##
 ##################################################
 
-
-
-
 # now we create the model
-# be aware units in the first layer and input shape must match to what is defined in the line before
+# units in the first layer are dynamic so the it fits the amount of bins that were created previously
 create_model_and_train <- function(my_train_features=dm_train_features, my_train_labels=dm_train_labels, my_val_features=dm_val_features, my_val_labels=dm_val_labels, epochs=2) {
   model <- keras_model_sequential() %>% 
     layer_dense(units = ncol(dm_train_features), activation = "relu", input_shape = c(ncol(dm_train_features) * 1)) %>% 
     layer_dense(units = 600, activation = "relu") %>% 
     layer_dense(units = 400, activation = "relu") %>% 
     layer_dense(units = 200, activation = "relu") %>%
-    layer_dense(units = 50, activation = "relu") %>%
-    layer_dense(units = 2, activation = "sigmoid")
+    layer_dense(units = 50, activation = "relu") %>% # use relu state of the art
+    layer_dense(units = 2, activation = "sigmoid") # using sigmoid for binary classification
   
   model %>% compile(
     optimizer = optimizer_rmsprop(
@@ -343,20 +324,15 @@ for (i in c(2,5,8,11,14,17,20,23,26,29)){
 }
 val_acc_av <- mean(val_acc)
 
-save_model_hdf5 (all_scores[30]$model, "ff_nn_model", include_optimizer = TRUE)
-
-
-
 ###########################################################
 ##
 ## Apply the model to the test data set
+## Do the exact same preparation with the data as before
 ##
 ###########################################################
 
 df_loan_test <- read.csv("loan_eval.csv",sep = ",", header = TRUE)
-
 loan_cleaned_I_test <- df_loan_test[, -which(colMeans(is.na(df_loan_test)) > 0.1)]
-
 df_loan_cleaned_test <- within(loan_cleaned_I_test, rm('X',
                                              'url',
                                              'id',
@@ -414,37 +390,20 @@ df_loan_cleaned_test <- within(loan_cleaned_I_test, rm('X',
                                              'tot_cur_bal'
 ))
 
-
-#omit all fully paid loans
 df_loan_cleaned_test <- df_loan_cleaned_test %>% filter(loan_status != "Current")
-
-# can't remember but for now we do something
-# Charged OFF = Default
 df_loan_cleaned_test$loan_status <- replace(df_loan_cleaned_test$loan_status, df_loan_cleaned_test$loan_status != "Fully Paid", "Default") 
-
-#we now only have two levels, default and fully paid
-
 write.csv(x = df_loan_cleaned_test, file = "loan_eval_clean.csv")
 
 df_loan_cleaned_sample_test <- read.csv("loan_eval_clean.csv",sep = ",", header = TRUE)
-
 df_loan_cleaned_sample_test <- within(df_loan_cleaned_sample_test, rm('X'))
-
 df_loan_cleaned_sample_test <- df_loan_cleaned_sample_test[complete.cases(df_loan_cleaned_sample_test), ]
 
-#prepare the loan_status as categorical value where 1 == Default
-# Bit complicated but works for now
 df_test_labels <- dummy_cols(df_loan_cleaned_sample_test, select_columns = 'loan_status', remove_selected_columns = TRUE)
-
 write.csv(x = df_test_labels$loan_status_Default, file = "loan_eval_status_default.csv")
-
 test_labels <- df_test_labels$loan_status_Default
 
-# loan_status, we are done with you BYE!
 df_loan_cleaned_sample_test <- within(df_loan_cleaned_sample_test, rm('loan_status'))
 
-
-# all numerical values that are left are rescaled on a scale from 0 to 1
 df_loan_cleaned_sample_test$loan_amnt <- bin(df_loan_cleaned_sample_test$loan_amnt, nbins = bins)
 df_loan_cleaned_sample_test$annual_inc <- bin(df_loan_cleaned_sample_test$annual_inc, nbins = bins)
 df_loan_cleaned_sample_test$installment <- bin(df_loan_cleaned_sample_test$installment, nbins = 150)
@@ -456,17 +415,11 @@ df_loan_cleaned_sample_test$total_rec_prncp <- bin(df_loan_cleaned_sample_test$t
 
 
 df_loan_cleaned_sample_test$issue_d <- substr(df_loan_cleaned_sample_test$issue_d,5, 9)
-
-#we have one more level in home_ownership which is any, this is converted to other
 df_loan_cleaned_sample_test$home_ownership <- replace(df_loan_cleaned_sample_test$home_ownership, df_loan_cleaned_sample_test$home_ownership == "ANY", "OTHER") 
-
-
-# all categorical are converted to dummies like the mushrooms
 df_test_features <- dummy_cols(df_loan_cleaned_sample_test, select_columns = c('installment','total_rec_int','total_rec_prncp','out_prncp', 'issue_d', 'dti','delinq_2yrs','annual_inc','loan_amnt','term','sub_grade','emp_length', 'home_ownership', 'verification_status', 'purpose'), remove_selected_columns = TRUE)
-
-# here a level of delinq_2yrs is removed to match the input 
 df_test_features <- within(df_test_features, rm('int_rate'))
 
+# data preparation for the test data is done
 write.csv(x = df_test_features, file = "eval_features.csv")
 
 #load the model
@@ -478,13 +431,12 @@ dm_test_features <- data.matrix(df_test_features)
 
 result <- model %>% evaluate(dm_test_features,dm_test_labels, verbose = 1)
 
-
 #########################################################
 ##
 ## Write the score sheet
+## the score sheet is used to compara different setup, compare different hyper-parameters
 ##
 #########################################################
-
 
 df_eval <- data.frame(matrix(ncol = 1, nrow = 1))
 df_eval <- data.frame(
@@ -511,7 +463,6 @@ df_eval <- data.frame(
 
 # lets have a look at it
 View(df_eval)
-
 
 write.table( df_eval,  
              file="score_sheet", 
