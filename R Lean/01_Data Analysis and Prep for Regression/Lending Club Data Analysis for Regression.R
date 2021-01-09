@@ -134,7 +134,7 @@ ggplot(missing_data,
 ######
 
 write.csv(x = df_loan_cleaned, file = "../regression_loan_cleaned.csv")
-
+save(df_loan_cleaned, file = "df_loan_cleaned.rda")
 ######
 ## 
 ## sample the set for further analysis on smaller data set and store this in a file as well
@@ -142,8 +142,8 @@ write.csv(x = df_loan_cleaned, file = "../regression_loan_cleaned.csv")
 ######
 set.seed(1)
 df_sample <- sample_n(df_loan_cleaned,10000)
-write.csv(x = df_sample, file = "regression_train_loan_sample_cleaned.csv")
-
+#write.csv(x = df_sample, file = "regression_train_loan_sample_cleaned.csv")
+save(df_sample, file = "df_loan_sample.rda")
 
 # ===================================================================================================
 # ===================================================================================================
@@ -159,8 +159,11 @@ write.csv(x = df_sample, file = "regression_train_loan_sample_cleaned.csv")
 ## CLEANUP ## 
 ## Must not be performed - but could improve performance!
 ## important to set workspace to the folder of the csv file
-rm(list = ls())
-df_loan_sample <- read.csv("regression_train_loan_sample_cleaned.csv",sep = ",", header = TRUE)
+
+#rm(list = ls())
+#load("df_loan_sample.rda")
+#load("df_loan_cleaned.rda")
+#df_loan_sample <- read.csv("regression_train_loan_sample_cleaned.csv",sep = ",", header = TRUE)
 
 
 #################################################
@@ -168,8 +171,8 @@ df_loan_sample <- read.csv("regression_train_loan_sample_cleaned.csv",sep = ",",
 ## II.I Data type correction
 ##
 #################################################
-dataset_to_analyze <- df_loan_sample
-#dataset_to_analyze <- df_loan_cleaned
+#dataset_to_analyze <- df_loan_sample
+dataset_to_analyze <- df_loan_cleaned
 
 # converting incorrect data types to be able to work with them as factor variables
 dataset_to_analyze$sub_grade <- as.factor(dataset_to_analyze$sub_grade)
