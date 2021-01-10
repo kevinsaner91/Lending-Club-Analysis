@@ -108,14 +108,11 @@ df_loan_cleaned <- within(loan_cleaned_I, rm('X',
 ##
 ###################################
 
-#omit all fully paid loans
+#omit all current loans
 df_loan_cleaned <- df_loan_cleaned %>% filter(loan_status != "Current")
 
 # !Fully Paid = Default
 df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_cleaned$loan_status != "Fully Paid", "Default") 
-
-#we now only have two levels, default and fully paid
-save(df_loan_cleaned, file = "regression_loan_cleaned_for_nn")
 
 #########################################################
 ##
@@ -127,8 +124,6 @@ library('fastDummies')
 library('OneR')
 library("scales")
 
-rm(list = ls())
-load("regression_loan_cleaned_for_nn")
 
 df_loan_cleaned <- df_loan_cleaned[complete.cases(df_loan_cleaned), ]
 df_train_labels <- dummy_cols(df_loan_cleaned, select_columns = 'loan_status', remove_selected_columns = TRUE)
@@ -157,6 +152,9 @@ df_loan_cleaned$total_rec_prncp <- bin(df_loan_cleaned$total_rec_prncp, nbins = 
 
 df_loan_cleaned$issue_d <- substr(df_loan_cleaned$issue_d,5, 9)
 
+# The level ANY is not apparent in the test, so we convert ANY to OTHER
+df_loan_cleaned$home_ownership <- replace(df_loan_cleaned$home_ownership, df_loan_cleaned$home_ownership == "ANY", "OTHER") 
+
 # all variables are converted to dummy variable
 df_train_features <- dummy_cols(df_loan_cleaned, select_columns = c('installment','total_rec_int','total_rec_prncp','out_prncp', 'issue_d','dti','delinq_2yrs' ,'annual_inc','loan_amnt','term','sub_grade','emp_length', 'home_ownership', 'verification_status', 'purpose'), remove_selected_columns = TRUE)
 
@@ -170,6 +168,8 @@ save(train_labels, file = 'train_labels')
 ##
 ##################################################
 
+# excute code from here to just see how to learning is done
+rm(list = ls())
 # now we create the model
 # the model is created the same as the one proved to be best in 10-fold CV
 create_model_and_train <- function(my_train_features=dm_train_features, my_train_labels=dm_train_labels, epochs=2) {
@@ -221,6 +221,7 @@ history <- create_model_and_train(dm_train_features, dm_train_labels, epochs)
 ##
 ###########################################################
 
+rm(list = ls())
 df_loan_test <- read.csv("loan_eval.csv",sep = ",", header = TRUE)
 loan_cleaned_I_test <- df_loan_test[, -which(colMeans(is.na(df_loan_test)) > 0.1)]
 df_loan_cleaned_test <- within(loan_cleaned_I_test, rm('X',

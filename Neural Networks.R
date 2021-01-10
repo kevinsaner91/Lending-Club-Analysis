@@ -103,11 +103,11 @@ df_loan_cleaned <- within(loan_cleaned_I, rm('X',
 
 ####################################
 ##
-##Until here this is pretty much what we did before
+##Until here this is pretty much what we did before in regression
 ##
 ###################################
 
-#omit all fully paid loans
+#omit all current loans
 df_loan_cleaned <- df_loan_cleaned %>% filter(loan_status != "Current")
 
 # !Fully Paid = Default
@@ -115,21 +115,18 @@ df_loan_cleaned$loan_status <- replace(df_loan_cleaned$loan_status, df_loan_clea
 
 #we now only have two levels, default and fully paid
 
-write.csv(x = df_loan_cleaned, file = "regression_loan_cleaned_for_nn.csv")
-
 ######################################################################
 ##
-## Store and sample
+## Sample for 10-fold CV
 ##
 ######################################################################
 
-rm(list = ls())
-df_loan_cleaned <- read.csv("regression_loan_cleaned_for_nn.csv",sep = ",", header = TRUE)
-#let's sample
+#let's sample for hyperparameter 
 set.seed(1)
+# sample a bit too much so incomplete cases can be omitted and still have 100'000
 df_loan_cleaned_sample <- sample_n(df_loan_cleaned,100050)
 
-write.csv(x = df_loan_cleaned_sample, file = "regression_loan_cleaned_for_nn_sample.csv")
+save(df_loan_cleaned_sample, file = "train_sample_CV")
 
 
 #########################################################
@@ -138,18 +135,13 @@ write.csv(x = df_loan_cleaned_sample, file = "regression_loan_cleaned_for_nn_sam
 ##
 #########################################################
 
-# https://www.kaggle.com/deepanshu08/prediction-of-lendingclub-loan-defaulters
-
 library('keras')
 library('fastDummies')
 library('OneR')
 library("scales")
 
 rm(list = ls())
-df_loan_cleaned_sample <- read.csv("regression_loan_cleaned_for_nn_sample.csv",sep = ",", header = TRUE)
-
-df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('X.1',
-                                                            'X'))
+load("train_sample_CV")
 
 df_loan_cleaned_sample <- df_loan_cleaned_sample[complete.cases(df_loan_cleaned_sample), ]
 
@@ -157,12 +149,6 @@ df_loan_cleaned_sample <- df_loan_cleaned_sample[complete.cases(df_loan_cleaned_
 df_train_labels <- dummy_cols(df_loan_cleaned_sample, select_columns = 'loan_status', remove_selected_columns = TRUE)
 
 write.csv(x = df_train_labels$loan_status_Default, file = "loan_status_default.csv")
-
-#train_labels <- df_train_labels$loan_status_Default[1:90000]
-#val_labels <- df_train_labels$loan_status_Default[90000:99986]
-
-#dm_train_labels <- to_categorical(train_labels)
-#dm_val_labels <- to_categorical(val_labels)
 
 # loan_status, we are done with you BYE!
 df_loan_cleaned_sample <- within(df_loan_cleaned_sample, rm('loan_status'))
@@ -274,7 +260,6 @@ epochs <- 5
 for (i in c(0, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000)){
   ub <- i + 10000
  
-  
   cat("    build model for fold #", i, "\n")
   train_labels <- df_train_labels$x[-(i:ub)]
   val_labels <- df_train_labels$x[i:ub]
@@ -282,13 +267,10 @@ for (i in c(0, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000)){
   dm_train_labels <- to_categorical(train_labels)
   dm_val_labels <- to_categorical(val_labels)
   
-  
   train_features <- df_train_features[-(i:ub),]
   val_features <- df_train_features[i:ub,]
   
-  
   #convert to matrix, this is pure magic
-  #but I heard Holger say we need this
   dm_train_features <- data.matrix(train_features)
   dm_val_features <- data.matrix(val_features)
   
@@ -323,6 +305,8 @@ for (i in c(2,5,8,11,14,17,20,23,26,29)){
   val_acc <- c(val_acc, c(all_scores[i]$val[2]))
 }
 val_acc_av <- mean(val_acc)
+
+save_model_hdf5 (all_scores[30]$model, "ff_nn_model_10_fold", include_optimizer = TRUE)
 
 ###########################################################
 ##
@@ -392,21 +376,23 @@ df_loan_cleaned_test <- within(loan_cleaned_I_test, rm('X',
 
 df_loan_cleaned_test <- df_loan_cleaned_test %>% filter(loan_status != "Current")
 df_loan_cleaned_test$loan_status <- replace(df_loan_cleaned_test$loan_status, df_loan_cleaned_test$loan_status != "Fully Paid", "Default") 
-write.csv(x = df_loan_cleaned_test, file = "loan_eval_clean.csv")
 
 df_loan_cleaned_sample_test <- read.csv("loan_eval_clean.csv",sep = ",", header = TRUE)
 df_loan_cleaned_sample_test <- within(df_loan_cleaned_sample_test, rm('X'))
 df_loan_cleaned_sample_test <- df_loan_cleaned_sample_test[complete.cases(df_loan_cleaned_sample_test), ]
 
 df_test_labels <- dummy_cols(df_loan_cleaned_sample_test, select_columns = 'loan_status', remove_selected_columns = TRUE)
-write.csv(x = df_test_labels$loan_status_Default, file = "loan_eval_status_default.csv")
+
 test_labels <- df_test_labels$loan_status_Default
 
 df_loan_cleaned_sample_test <- within(df_loan_cleaned_sample_test, rm('loan_status'))
 
+#use same number of bins as above
+#bins <- 100
+
 df_loan_cleaned_sample_test$loan_amnt <- bin(df_loan_cleaned_sample_test$loan_amnt, nbins = bins)
 df_loan_cleaned_sample_test$annual_inc <- bin(df_loan_cleaned_sample_test$annual_inc, nbins = bins)
-df_loan_cleaned_sample_test$installment <- bin(df_loan_cleaned_sample_test$installment, nbins = 150)
+df_loan_cleaned_sample_test$installment <- bin(df_loan_cleaned_sample_test$installment, nbins = bins)
 df_loan_cleaned_sample_test$dti <- bin(df_loan_cleaned_sample_test$dti, nbins = bins)
 df_loan_cleaned_sample_test$out_prncp <- bin(df_loan_cleaned_sample_test$out_prncp, nbins = bins)
 df_loan_cleaned_sample_test$delinq_2yrs <- bin(df_loan_cleaned_sample_test$delinq_2yrs, nbins = 14)
@@ -420,10 +406,9 @@ df_test_features <- dummy_cols(df_loan_cleaned_sample_test, select_columns = c('
 df_test_features <- within(df_test_features, rm('int_rate'))
 
 # data preparation for the test data is done
-write.csv(x = df_test_features, file = "eval_features.csv")
 
 #load the model
-model <- load_model_hdf5("ff_nn_model", compile = TRUE)
+model <- load_model_hdf5("ff_nn_model_10_fold", compile = TRUE)
 
 dm_test_labels <- to_categorical(test_labels)
 dm_test_features <- data.matrix(df_test_features)
@@ -434,7 +419,7 @@ result <- model %>% evaluate(dm_test_features,dm_test_labels, verbose = 1)
 #########################################################
 ##
 ## Write the score sheet
-## the score sheet is used to compara different setup, compare different hyper-parameters
+## the score sheet is used to compare different setups, and compare different hyper-parameters
 ##
 #########################################################
 
