@@ -306,6 +306,12 @@ df_test_features <- dummy_cols(df_loan_cleaned_test, select_columns = c('install
 # test data is prepared, the model trained
 # so let's load it and evaluate
 
+save(df_test_features, file = "test_features")
+save(test_labels, file = 'test_labels')
+
+load("test_features")
+load('test_labels')
+
 #load the model
 model <- load_model_hdf5("ff_nn_model", compile = TRUE)
 
